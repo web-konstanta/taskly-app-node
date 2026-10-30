@@ -47,6 +47,8 @@ describe('write guard', () => {
   it('allows tests and refuses source, traversal and outside paths', () => {
     assert.equal(checkWritePath(join(root, 'backend/tests/a.test.ts'), root), null);
     assert.equal(checkWritePath('backend/tests/a.test.ts', root), null);
+    assert.equal(checkWritePath('.agent-context/report.json', root), null);
+    assert.match(checkWritePath('.agent-context/changes.json', root), /refused/);
     for (const path of ['backend/src/a.ts', 'backend/tests/../src/a.test.ts', '/etc/passwd', '.claude/settings.json']) assert.match(checkWritePath(path, root), /refused/);
   });
   it('refuses a symlink that redirects a test path', () => {
@@ -167,15 +169,14 @@ describe('renderComment', () => {
 
 describe('extractReport', () => {
   const report = { summary: 'ok', decisions: [{ path: 'a.ts', action: 'skip', reason: 'none', testFile: null, skills: [] }], suspectedBugs: [] };
-  it('accepts structured output, fenced JSON and plain JSON', () => {
-    assert.deepEqual(extractReport({ structured_output: report }), report);
-    assert.deepEqual(extractReport({ result: `Done.\n\n\`\`\`json\n${JSON.stringify(report)}\n\`\`\`` }), report);
-    assert.deepEqual(extractReport({ result: JSON.stringify(report) }), report);
+  it('accepts a valid report file', () => {
+    assert.deepEqual(extractReport({}, JSON.stringify(report)), report);
   });
-  it('fails on errors, prose and contract violations', () => {
-    assert.throws(() => extractReport({ is_error: true, subtype: 'error_max_budget_usd' }), /error_max_budget_usd/);
-    assert.throws(() => extractReport({ result: 'All tests pass!' }), /no parseable report/);
-    assert.throws(() => extractReport({ structured_output: { ...report, decisions: [{ ...report.decisions[0], action: 'delete' }] } }), /invalid decision/);
-    assert.throws(() => extractReport({ structured_output: { summary: 'ok' } }), /decisions/);
+  it('fails on run errors, a missing file, bad JSON and contract violations', () => {
+    assert.throws(() => extractReport({ is_error: true, subtype: 'error_max_budget_usd' }, JSON.stringify(report)), /error_max_budget_usd/);
+    assert.throws(() => extractReport({ result: 'All tests pass!' }, null), /no report file/);
+    assert.throws(() => extractReport({}, 'All tests pass!'), /not valid JSON/);
+    assert.throws(() => extractReport({}, JSON.stringify({ ...report, decisions: [{ ...report.decisions[0], action: 'delete' }] })), /invalid decision/);
+    assert.throws(() => extractReport({}, JSON.stringify({ summary: 'ok' })), /decisions/);
   });
 });

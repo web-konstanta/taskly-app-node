@@ -24,7 +24,8 @@ case "$mode" in
   *) echo "unknown mode: $mode" >&2; exit 64 ;;
 esac
 
-mkdir -p "$out"
+mkdir -p "$out" .agent-context
+rm -f .agent-context/report.json # A stale report must never pass for this run.
 
 # The subprocess scrub removes the API key from everything the agent runs, including tests.
 export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
@@ -42,7 +43,6 @@ claude -p "$prompt" \
   --no-session-persistence \
   --max-budget-usd "${TEST_AGENT_MAX_BUDGET_USD:-5}" \
   --output-format json \
-  --json-schema "$(cat "$tools/decisions.schema.json")" \
   > "$out/agent-result.json"
 
-node "$tools/parse-report.mjs" "$out/agent-result.json" "$out/decisions.json"
+node "$tools/parse-report.mjs" "$out/agent-result.json" .agent-context/report.json "$out/decisions.json"

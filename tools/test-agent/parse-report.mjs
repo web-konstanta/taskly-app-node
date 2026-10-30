@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Extracts and checks the agent's report. Usage: parse-report.mjs <agent-result.json> <decisions.json>
-// The CLI may return the report as structured_output or as JSON text, so both are accepted.
-import { readFileSync, writeFileSync } from 'node:fs';
+// Checks the report file the agent must write. Usage: parse-report.mjs <agent-result.json> <report.json> <decisions.json>
+// A file is the contract because a model's final message is not reliably JSON, even with --json-schema.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const ACTIONS = new Set(['create', 'update', 'skip']);
@@ -23,17 +23,14 @@ export function reportProblem(report) {
   return null;
 }
 
-export function extractReport(result) {
+export function extractReport(result, reportText) {
   if (result.is_error) throw new Error(`Agent run failed: ${result.subtype}`);
-  let report = result.structured_output;
-  if (!report) {
-    const text = String(result.result ?? '').trim();
-    const fenced = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```\s*$/);
-    try {
-      report = JSON.parse(fenced ? fenced[1] : text);
-    } catch {
-      throw new Error('Agent run produced no parseable report.');
-    }
+  if (reportText === null) throw new Error('Agent run wrote no report file.');
+  let report;
+  try {
+    report = JSON.parse(reportText);
+  } catch {
+    throw new Error('Agent report is not valid JSON.');
   }
   const problem = reportProblem(report);
   if (problem) throw new Error(`Invalid agent report: ${problem}`);
@@ -41,11 +38,13 @@ export function extractReport(result) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const result = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  const [resultPath, reportPath, outputPath] = process.argv.slice(2);
+  const result = JSON.parse(readFileSync(resultPath, 'utf8'));
   const { total_cost_usd, num_turns, duration_ms, subtype } = result;
   console.log(JSON.stringify({ total_cost_usd, num_turns, duration_ms, subtype }));
   try {
-    writeFileSync(process.argv[3], JSON.stringify(extractReport(result), null, 2));
+    const reportText = existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : null;
+    writeFileSync(outputPath, JSON.stringify(extractReport(result, reportText), null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);

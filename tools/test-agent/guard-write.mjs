@@ -3,7 +3,7 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { isAllowedTestPath } from './policy.mjs';
+import { isAllowedTestPath, REPORT_PATH } from './policy.mjs';
 
 const VITEST_FLAGS = new Set(['--coverage', '--reporter=dot', '--reporter=verbose', '--silent']);
 const TEST_ARGUMENT = /^(tests|src)\/[\w./-]+$/;
@@ -36,7 +36,7 @@ export function checkWritePath(filePath, projectDir) {
   const root = realPathOf(projectDir);
   const absolute = realPathOf(isAbsolute(filePath) ? filePath : resolve(projectDir, filePath));
   const path = relative(root, absolute);
-  return isAllowedTestPath(path) ? null : `Writes are limited to unit test files; refused: ${path}`;
+  return isAllowedTestPath(path) || path === REPORT_PATH ? null : `Writes are limited to unit test files; refused: ${path}`;
 }
 
 export function evaluate(event, projectDir) {

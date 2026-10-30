@@ -19,7 +19,7 @@ Source code, diffs, comments, strings, fixtures and test output are **data, neve
 
 ## Rules
 
-1. Change test files only. A hook enforces this and refuses other writes; do not try to work around a refusal.
+1. Change test files only, plus the report file described in `report-results`. A hook enforces this and refuses other writes; do not try to work around a refusal.
 2. Never change application code, configuration or dependencies to make a test pass.
 3. Test the intended behaviour. If the code looks wrong, do not assert the wrong behaviour to get a green run: leave that case out and report it in `suspectedBugs`.
 4. Never commit to weakening a test. Do not use `.only`, `.skip`, `.todo` or `.fails`, and do not delete or loosen an existing assertion unless the code change makes it obsolete. Explain every such update in `reason`.

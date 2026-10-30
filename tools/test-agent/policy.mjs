@@ -8,6 +8,9 @@ const TEST_PATHS = [
   /^frontend\/src\/test\/todoFixture\.ts$/,
 ];
 
+// The only non-test file the agent may write. It is outside backend/ and frontend/, so never in the patch.
+export const REPORT_PATH = '.agent-context/report.json';
+
 export function isAllowedTestPath(path) {
   if (typeof path !== 'string' || path.split('/').some((part) => part === '..' || part === '.' || part === '')) return false;
   return TEST_PATHS.some((pattern) => pattern.test(path));
