@@ -68,6 +68,9 @@ jobs:
           allowed-endpoints: >
             api.anthropic.com:443
             binaries.prisma.sh:443
+            claude.ai:443
+            console.anthropic.com:443
+            platform.claude.com:443
             github.com:443
             nodejs.org:443
             objects.githubusercontent.com:443
@@ -106,7 +109,7 @@ jobs:
           git diff "$BASE_SHA...$HEAD_SHA" -- backend/src frontend/src > .agent-context/pr.diff
       - name: Run agent
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           TEST_AGENT_MODEL: ${{ vars.TEST_AGENT_MODEL || 'claude-sonnet-5-5' }}
           TEST_AGENT_MAX_BUDGET_USD: ${{ vars.TEST_AGENT_MAX_BUDGET_USD || '3' }}
         run: bash tools/test-agent/run-agent.sh pr results
