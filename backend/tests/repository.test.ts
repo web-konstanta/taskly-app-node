@@ -17,21 +17,27 @@ it('lists tasks in newest-first order and maps database rows', async () => {
   expect(await repository.list()).toEqual([todo]);
   expect(findMany).toHaveBeenCalledWith({ orderBy: [{ created_at: 'desc' }, { id: 'desc' }] });
 });
-it('counts totals, completed and overdue tasks and derives the active count', async () => {
+it('counts totals, completed, overdue and due-today tasks and derives the active count', async () => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-20T15:30:00Z'));
   try {
     const { database, repository } = setup();
     const count = vi.spyOn(database.todo, 'count').mockImplementation((async (args?: { where?: { completed?: boolean; due_date?: unknown } }) => {
       if (!args?.where) return 10;
-      return args.where.due_date ? 2 : 4;
+      if (args.where.completed) return 4;
+      return args.where.due_date instanceof Date ? 1 : 2;
     }) as never);
-    expect(await repository.stats()).toEqual({ total: 10, completed: 4, active: 6, overdue: 2 });
-    expect(count).toHaveBeenCalledTimes(3);
+    expect(await repository.stats()).toEqual({ total: 10, completed: 4, active: 6, overdue: 2, due_today: 1 });
+    expect(count).toHaveBeenCalledTimes(4);
+    expect(count).toHaveBeenCalledWith();
     expect(count).toHaveBeenCalledWith({ where: { completed: true } });
     // Overdue means incomplete with a due date before the start of today (UTC).
     expect(count).toHaveBeenCalledWith({
       where: { completed: false, due_date: { lt: new Date('2026-10-20T00:00:00.000Z') } },
+    });
+    // Due today means incomplete with a due date exactly at the start of today (UTC).
+    expect(count).toHaveBeenCalledWith({
+      where: { completed: false, due_date: new Date('2026-10-20T00:00:00.000Z') },
     });
   } finally {
     vi.useRealTimers();

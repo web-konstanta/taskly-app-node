@@ -15,7 +15,7 @@ it('passes the abort signal when fetching tasks', async () => {
 
 it('fetches task statistics and passes the abort signal', async () => {
   const signal = new AbortController().signal
-  const stats = { total: 3, completed: 1, active: 2, overdue: 1 }
+  const stats = { total: 3, completed: 1, active: 2, overdue: 1, due_today: 1 }
   vi.mocked(request).mockResolvedValue(stats)
   await expect(todosApi.stats(signal)).resolves.toEqual(stats)
   expect(request).toHaveBeenCalledWith('/todos/stats', { signal })
