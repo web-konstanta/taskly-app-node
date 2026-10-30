@@ -1,0 +1,5 @@
+{
+  "name": "taskly-app-node",
+  "private": true,
+  "description": "Marks the repository root. Without it, the agent's sandbox exposes an empty package.json that Vite cannot parse."
+}
