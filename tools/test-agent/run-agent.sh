@@ -31,6 +31,8 @@ rm -f .agent-context/report.json # A stale report must never pass for this run.
 export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 export DISABLE_AUTOUPDATER=1
+# Each command starts at the repository root, so the guard's `cd <area> &&` prefix works for both areas.
+export CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1
 
 claude -p "$prompt" \
   --agent unit-test-agent \
