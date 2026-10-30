@@ -13,6 +13,7 @@ export interface TodoStats {
   active: number;
   overdue: number;
   due_today: number;
+  completion_rate: number;
 }
 export interface TodoStore {
   list(): Promise<Todo[]>;

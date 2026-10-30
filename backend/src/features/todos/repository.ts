@@ -17,7 +17,7 @@ export class TodoRepository implements TodoStore {
       this.database.todo.count({ where: { completed: false, due_date: { lt: today } } }),
       this.database.todo.count({ where: { completed: false, due_date: today } }),
     ]);
-    return { total, completed, active: total - completed, overdue, due_today };
+    return { total, completed, active: total - completed, overdue, due_today, completion_rate: total ? Math.round((completed / total) * 100) : 0 };
   }
 
   async get(id: number): Promise<Todo | null> {

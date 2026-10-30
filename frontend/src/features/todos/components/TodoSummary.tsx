@@ -7,7 +7,8 @@ export function TodoSummary() {
   return (
     <section aria-label="Task summary">
       <Text muted>
-        {data.active} active · {data.completed} completed
+        {data.active} active · {data.completed} completed (
+        {data.completion_rate}%)
         {data.overdue > 0 && ` · ${data.overdue} overdue`}
         {data.due_today > 0 && ` · ${data.due_today} due today`}
       </Text>

@@ -17,6 +17,7 @@ export interface TodoStats {
   active: number
   overdue: number
   due_today: number
+  completion_rate: number
 }
 export type Filter = 'all' | 'active' | 'completed'
 export type Sort = 'newest' | 'priority' | 'due'

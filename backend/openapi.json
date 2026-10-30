@@ -305,7 +305,8 @@
           "completed",
           "active",
           "overdue",
-          "due_today"
+          "due_today",
+          "completion_rate"
         ],
         "properties": {
           "total": {
@@ -321,6 +322,9 @@
             "type": "integer"
           },
           "due_today": {
+            "type": "integer"
+          },
+          "completion_rate": {
             "type": "integer"
           }
         }
