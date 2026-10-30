@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": ["Read", "Grep", "Glob", "Edit", "Write", "Bash(npm run *)", "Bash(npx vitest run *)", "Bash(cd backend && *)", "Bash(cd frontend && *)"],
+    "deny": ["WebFetch", "WebSearch", "Agent", "Read(./.env)", "Read(./.env.*)", "Read(./**/.env)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/tools/test-agent/guard-write.mjs\"" }]
+      }
+    ]
+  }
+}

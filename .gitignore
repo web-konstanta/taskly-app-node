@@ -21,3 +21,7 @@ coverage/
 
 # macOS
 .DS_Store
+
+# Test agent runtime files
+.agent-context/
+results/

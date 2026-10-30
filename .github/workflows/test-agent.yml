@@ -1,0 +1,233 @@
+name: Unit Test Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: test-agent-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  gate:
+    # Forks get no secrets and no automatic run. Commits from this workflow never trigger it again.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft &&
+      github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      run_agent: ${{ steps.classify.outputs.run_agent }}
+      areas: ${{ steps.classify.outputs.areas }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Load trusted tools from the base commit
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted"
+          git archive "$BASE_SHA" tools/test-agent | tar -x -C "$RUNNER_TEMP/trusted"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Classify changes
+        id: classify
+        run: |
+          mkdir -p results
+          git diff --name-status "$BASE_SHA...$HEAD_SHA" | node "$RUNNER_TEMP/trusted/tools/test-agent/classify-changes.mjs" > results/gate.json
+          cat results/gate.json
+          echo "run_agent=$(jq -r .runAgent results/gate.json)" >> "$GITHUB_OUTPUT"
+          echo "areas=$(jq -r '.areas | join(" ")' results/gate.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate
+          path: results/gate.json
+
+  agent:
+    needs: gate
+    if: needs.gate.outputs.run_agent == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.anthropic.com:443
+            binaries.prisma.sh:443
+            github.com:443
+            nodejs.org:443
+            objects.githubusercontent.com:443
+            pipelines.actions.githubusercontent.com:443
+            registry.npmjs.org:443
+            release-assets.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: gate
+          path: .agent-context-input
+      - name: Install dependencies
+        env:
+          AREAS: ${{ needs.gate.outputs.areas }}
+        run: for area in $AREAS; do (cd "$area" && npm ci); done
+      - name: Install Claude Code
+        run: npm install --global @anthropic-ai/claude-code@2.1.280
+      - name: Replace agent definition with the trusted base version
+        run: |
+          rm -rf .claude tools/test-agent
+          git archive "$BASE_SHA" .claude tools/test-agent | tar -x
+          test -f .claude/agents/unit-test-agent.md
+      - name: Prepare agent context
+        run: |
+          mkdir -p .agent-context results
+          mv .agent-context-input/gate.json .agent-context/changes.json
+          rmdir .agent-context-input
+          git diff "$BASE_SHA...$HEAD_SHA" -- backend/src frontend/src > .agent-context/pr.diff
+      - name: Run agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TEST_AGENT_MODEL: ${{ vars.TEST_AGENT_MODEL || 'claude-sonnet-5-5' }}
+          TEST_AGENT_MAX_BUDGET_USD: ${{ vars.TEST_AGENT_MAX_BUDGET_USD || '3' }}
+        run: bash tools/test-agent/run-agent.sh pr results
+      - name: Capture patch
+        run: |
+          git add -N backend frontend
+          git diff --binary HEAD -- backend frontend ':!backend/coverage' ':!frontend/coverage' > results/agent.patch
+          wc -l results/agent.patch
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent
+          path: |
+            results/agent.patch
+            results/decisions.json
+
+  verify:
+    needs: [gate, agent]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Load trusted tools from the base commit
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted"
+          git archive "$BASE_SHA" tools/test-agent | tar -x -C "$RUNNER_TEMP/trusted"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: agent
+          path: ${{ runner.temp }}/results
+      - name: Validate patch against policy
+        id: validate
+        # A rejected patch fails here, so it is never applied or executed.
+        run: node "$RUNNER_TEMP/trusted/tools/test-agent/validate-patch.mjs" "$RUNNER_TEMP/results/agent.patch" > "$RUNNER_TEMP/results/validation.json"
+      - name: Install dependencies
+        env:
+          AREAS: ${{ needs.gate.outputs.areas }}
+        run: for area in $AREAS; do (cd "$area" && npm ci); done
+      - name: Verify
+        id: verify
+        env:
+          AREAS: ${{ needs.gate.outputs.areas }}
+        # shellcheck disable=SC2086
+        run: bash "$RUNNER_TEMP/trusted/tools/test-agent/verify.sh" "$RUNNER_TEMP/trusted/tools/test-agent" "$RUNNER_TEMP/results/agent.patch" "$RUNNER_TEMP/results" $AREAS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: verify
+          path: |
+            ${{ runner.temp }}/results/verify.json
+            ${{ runner.temp }}/results/validation.json
+
+  publish:
+    # Runs for every outcome so the pull request always gets a report. Never executes PR code.
+    needs: [gate, agent, verify]
+    if: always() && needs.gate.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      AGENT_RESULT: ${{ needs.agent.result }}
+      VERIFY_RESULT: ${{ needs.verify.result }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Load trusted tools from the base commit
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted"
+          git archive "$BASE_SHA" tools/test-agent | tar -x -C "$RUNNER_TEMP/trusted"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '*'
+          merge-multiple: true
+          path: ${{ runner.temp }}/results
+      - name: Re-validate patch
+        # The verify job executed PR code, so its copy of this result is not trusted.
+        if: needs.agent.result == 'success'
+        run: node "$RUNNER_TEMP/trusted/tools/test-agent/validate-patch.mjs" "$RUNNER_TEMP/results/agent.patch" > "$RUNNER_TEMP/results/validation.json" || true
+      - name: Commit verified tests
+        if: needs.agent.result == 'success' && needs.verify.result == 'success'
+        run: |
+          results="$RUNNER_TEMP/results"
+          [ "$(jq -r .status "$results/validation.json")" = ok ] || exit 0
+          [ "$(jq -r .empty "$results/validation.json")" = false ] || exit 0
+          current="$(git ls-remote origin "refs/heads/$HEAD_REF" | cut -f1)"
+          if [ "$current" != "$HEAD_SHA" ]; then
+            echo '{"pushed":false,"reason":"the branch moved during the run"}' > "$results/published.json"
+            exit 0
+          fi
+          git apply --index "$results/agent.patch"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "test: add unit tests from test agent" -m "Verified by workflow run $RUN_URL"
+          git push origin "HEAD:refs/heads/$HEAD_REF"
+          echo '{"pushed":true}' > "$results/published.json"
+      - name: Post or update the report
+        if: always()
+        run: |
+          node "$RUNNER_TEMP/trusted/tools/test-agent/render-comment.mjs" "$RUNNER_TEMP/results" > "$RUNNER_TEMP/comment.md"
+          cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
+          id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- test-agent-report -->"))) | .id' | head -1)"
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" >/dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@"$RUNNER_TEMP/comment.md" >/dev/null
+          fi
