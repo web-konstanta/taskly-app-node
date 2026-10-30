@@ -61,6 +61,26 @@ it('replaces a cached task with the same id instead of duplicating it', async ()
   expect(queryClient.getQueryData(todoKeys.list)).toEqual([todoFixture])
 })
 
+it('invalidates the statistics after a task is created', async () => {
+  vi.mocked(todosApi.create).mockResolvedValue(todoFixture)
+  const { queryClient, result } = setup()
+  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+  await act(() => result.current.mutateAsync(input))
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: todoKeys.stats })
+})
+
+it('does not invalidate the statistics when creation fails', async () => {
+  vi.mocked(todosApi.create).mockRejectedValue(new Error('Server down'))
+  const { queryClient, result } = setup()
+  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+  await act(async () => {
+    await expect(result.current.mutateAsync(input)).rejects.toThrow(
+      'Server down',
+    )
+  })
+  expect(invalidate).not.toHaveBeenCalled()
+})
+
 it('exposes the error and leaves the cached list untouched when creation fails', async () => {
   vi.mocked(todosApi.create).mockRejectedValue(new Error('Server down'))
   const { queryClient, result } = setup()

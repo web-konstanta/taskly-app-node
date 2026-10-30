@@ -41,6 +41,26 @@ it('does not create a cached list when none was loaded', async () => {
   expect(queryClient.getQueryData(todoKeys.list)).toBeUndefined()
 })
 
+it('invalidates the statistics after a task is deleted', async () => {
+  vi.mocked(todosApi.remove).mockResolvedValue(undefined)
+  const { queryClient, result } = setup()
+  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+  await act(() => result.current.mutateAsync(todoFixture.id))
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: todoKeys.stats })
+})
+
+it('does not invalidate the statistics when deletion fails', async () => {
+  vi.mocked(todosApi.remove).mockRejectedValue(new Error('Could not delete'))
+  const { queryClient, result } = setup()
+  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+  await act(async () => {
+    await expect(result.current.mutateAsync(todoFixture.id)).rejects.toThrow(
+      'Could not delete',
+    )
+  })
+  expect(invalidate).not.toHaveBeenCalled()
+})
+
 it('exposes the error and keeps the task cached when deletion fails', async () => {
   vi.mocked(todosApi.remove).mockRejectedValue(new Error('Could not delete'))
   const { queryClient, result } = setup()
