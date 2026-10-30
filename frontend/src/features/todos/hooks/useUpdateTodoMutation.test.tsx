@@ -51,6 +51,31 @@ it('does not create a cached list when none was loaded', async () => {
   expect(queryClient.getQueryData(todoKeys.list)).toBeUndefined()
 })
 
+it('invalidates the statistics after a task is updated', async () => {
+  vi.mocked(todosApi.update).mockResolvedValue(todoFixture)
+  const { queryClient, result } = setup()
+  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+  await act(() =>
+    result.current.mutateAsync({
+      id: todoFixture.id,
+      input: { completed: true },
+    }),
+  )
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: todoKeys.stats })
+})
+
+it('does not invalidate the statistics when the update fails', async () => {
+  vi.mocked(todosApi.update).mockRejectedValue(new Error('Not found'))
+  const { queryClient, result } = setup()
+  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+  await act(async () => {
+    await expect(
+      result.current.mutateAsync({ id: todoFixture.id, input: { title: 'x' } }),
+    ).rejects.toThrow('Not found')
+  })
+  expect(invalidate).not.toHaveBeenCalled()
+})
+
 it('exposes the error and keeps the cached list when the update fails', async () => {
   vi.mocked(todosApi.update).mockRejectedValue(new Error('Not found'))
   const { queryClient, result } = setup()

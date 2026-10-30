@@ -35,6 +35,9 @@ vi.mock('./components/TodosHeader', () => ({
   ),
 }))
 vi.mock('./components/TodoFilters', () => ({ TodoFilters: () => null }))
+vi.mock('./components/TodoSummary', () => ({
+  TodoSummary: () => <p>task summary</p>,
+}))
 vi.mock('./components/TodoList', () => ({
   TodoList: ({
     todos,
@@ -208,6 +211,11 @@ it('displays a query failure and resets mutation errors before retrying', async 
   expect(reset.mock.invocationCallOrder[0]).toBeLessThan(
     refetch.mock.invocationCallOrder[0],
   )
+})
+
+it('shows the task summary on the page', () => {
+  setup()
+  expect(screen.getByText('task summary')).toBeVisible()
 })
 
 it('shows no alert when nothing failed', () => {
