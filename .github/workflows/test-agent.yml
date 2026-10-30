@@ -110,6 +110,12 @@ jobs:
           TEST_AGENT_MODEL: ${{ vars.TEST_AGENT_MODEL || 'claude-sonnet-5-5' }}
           TEST_AGENT_MAX_BUDGET_USD: ${{ vars.TEST_AGENT_MAX_BUDGET_USD || '3' }}
         run: bash tools/test-agent/run-agent.sh pr results
+      - name: Format agent tests
+        # The agent has no formatter available, and backend tests have no Prettier configuration.
+        run: |
+          [ -x frontend/node_modules/.bin/prettier ] || exit 0
+          git add -N frontend
+          git diff --name-only --diff-filter=d HEAD -- 'frontend/src/*.test.ts' 'frontend/src/*.test.tsx' | sed 's#^frontend/##' | (cd frontend && xargs -r npx prettier --write)
       - name: Capture patch
         run: |
           git add -N backend frontend
