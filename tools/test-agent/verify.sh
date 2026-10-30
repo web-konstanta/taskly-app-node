@@ -9,7 +9,8 @@ status=0
 area_results='{}'
 
 coverage_run() { # <area> <copy target>
-  (cd "$root/$1" && npm run test:coverage >/dev/null 2>&1)
+  # Failing tests are expected here, and the report is still needed as the baseline.
+  (cd "$root/$1" && npx vitest run --coverage --coverage.reportOnFailure >/dev/null 2>&1)
   local code=$?
   cp "$root/$1/coverage/coverage-summary.json" "$2" 2>/dev/null || true
   return $code

@@ -100,7 +100,7 @@ jobs:
       - name: Install sandbox for subprocess environment scrubbing
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bubblewrap
+          sudo apt-get install -y -qq bubblewrap socat
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           bwrap --ro-bind / / true
       - name: Install Claude Code
