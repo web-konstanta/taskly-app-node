@@ -67,6 +67,9 @@ jobs:
           egress-policy: block
           allowed-endpoints: >
             api.anthropic.com:443
+            archive.ubuntu.com:80
+            azure.archive.ubuntu.com:80
+            security.ubuntu.com:80
             binaries.prisma.sh:443
             claude.ai:443
             console.anthropic.com:443
@@ -94,6 +97,12 @@ jobs:
         env:
           AREAS: ${{ needs.gate.outputs.areas }}
         run: for area in $AREAS; do (cd "$area" && npm ci); done
+      - name: Install sandbox for subprocess environment scrubbing
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bwrap --ro-bind / / true
       - name: Install Claude Code
         run: npm install --global @anthropic-ai/claude-code@2.1.280
       - name: Replace agent definition with the trusted base version
