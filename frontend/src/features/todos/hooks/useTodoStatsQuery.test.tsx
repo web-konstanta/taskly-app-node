@@ -9,7 +9,14 @@ import { useTodoStatsQuery } from './useTodoStatsQuery'
 vi.mock('../api/todos', () => ({ todosApi: { stats: vi.fn() } }))
 beforeEach(() => vi.clearAllMocks())
 
-const stats = { total: 3, completed: 1, active: 2, overdue: 1, due_today: 1 }
+const stats = {
+  total: 3,
+  completed: 1,
+  active: 2,
+  overdue: 1,
+  due_today: 1,
+  completion_rate: 33,
+}
 
 function setup() {
   const queryClient = new QueryClient({

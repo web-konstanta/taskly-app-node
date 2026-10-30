@@ -34,7 +34,7 @@ it.each([{ title: '  ' }, { title: 'x'.repeat(121) }, { title: 'Task', priority:
 );
 it('returns task statistics without treating "stats" as a task ID', async () => {
   const { app, repository } = setup();
-  const stats = { total: 5, completed: 2, active: 3, overdue: 1, due_today: 1 };
+  const stats = { total: 5, completed: 2, active: 3, overdue: 1, due_today: 1, completion_rate: 40 };
   repository.stats.mockResolvedValue(stats);
   const response = await request(app).get('/api/todos/stats');
   expect(response.status).toBe(200);
