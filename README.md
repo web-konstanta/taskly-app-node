@@ -134,3 +134,7 @@ Coverage — `backend/coverage/index.html`:
 ```sh
 npm run test:coverage
 ```
+
+## Unit Test Agent
+
+Pull requests are processed by the unit test agent. See `SOLUTION.md`.
