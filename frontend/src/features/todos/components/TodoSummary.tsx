@@ -9,6 +9,7 @@ export function TodoSummary() {
       <Text muted>
         {data.active} active · {data.completed} completed
         {data.overdue > 0 && ` · ${data.overdue} overdue`}
+        {data.due_today > 0 && ` · ${data.due_today} due today`}
       </Text>
     </section>
   )

@@ -11,12 +11,13 @@ export class TodoRepository implements TodoStore {
 
   async stats(): Promise<TodoStats> {
     const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
-    const [total, completed, overdue] = await Promise.all([
+    const [total, completed, overdue, due_today] = await Promise.all([
       this.database.todo.count(),
       this.database.todo.count({ where: { completed: true } }),
       this.database.todo.count({ where: { completed: false, due_date: { lt: today } } }),
+      this.database.todo.count({ where: { completed: false, due_date: today } }),
     ]);
-    return { total, completed, active: total - completed, overdue };
+    return { total, completed, active: total - completed, overdue, due_today };
   }
 
   async get(id: number): Promise<Todo | null> {
